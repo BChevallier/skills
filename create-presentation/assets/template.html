@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>[Deck title]</title>
+  <meta name="author" content="[Author]">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/theme/black.css">
+  <style>
+    :root {
+      --surface: #000000;
+      --text: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --accent: #d95926;
+      --r-background-color: var(--surface);
+      --r-main-color: var(--text);
+      --r-heading-color: var(--text);
+      --r-heading-text-transform: none;
+    }
+    .reveal-viewport { background: var(--surface); }
+
+    /* Left-aligned by default; reveal's vertical centring is off (center: false),
+       so every slide starts at the top and titles sit at the same height. */
+    .reveal .slides { text-align: left; }
+    .reveal .slides section > h2:first-child,
+    .reveal .slides section > h3:first-child { margin: 0.6em 0 0.5em; }
+    .reveal ul, .reveal ol { display: block; margin-left: 1em; }
+
+    /* Centred slide: quotes, section dividers, single statements, full figures. */
+    .reveal .slides section.centered {
+      height: 100%;
+      display: flex !important;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .reveal blockquote { background: rgba(255, 255, 255, 0.1); width: 85%; }
+    .reveal blockquote .by { display: block; margin-top: 0.8em; font-size: 0.7em; font-style: normal; }
+    .accent { color: var(--accent); }
+
+    /* Figures */
+    .reveal figure { margin: 0; text-align: center; }
+    .reveal figure img, .reveal .r-stack img { max-height: 520px; margin: 0; }
+    .graph-label { font-size: 0.8em; color: var(--text-secondary); text-align: center; margin: 0.3em 0 0; }
+
+    /* "*" aside at the bottom of a slide */
+    .reveal .slides section.with-footnote { height: 100%; display: flex !important; flex-direction: column; }
+    .footnote { margin-top: auto; margin-bottom: 1em; font-size: 0.5em; color: var(--muted); }
+
+    /* Inspiration + Sources lists */
+    .reveal ul.refs { list-style: none; margin: 0; font-size: 0.6em; }
+    .reveal ul.refs li { margin: 0 0 0.7em; }
+    .reveal ul.refs a { color: var(--text); font-weight: 600; text-decoration: underline;
+      text-decoration-color: var(--accent); text-underline-offset: 0.15em; }
+    .reveal ul.refs a:hover { color: var(--accent); }
+    .ref-title { color: var(--text-secondary); }
+    .ref-why { display: block; color: var(--muted); font-style: italic; }
+    .refs-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; }
+
+    /* Next-slide cue: a dim corner triangle (top right) shown once the next
+       press changes slide, i.e. the last fragment is out. Tune --cue to taste. */
+    :root { --cue: #2e2e2e; --cue-size: 1.6vmin; }
+    .next-slide-cue {
+      position: absolute; top: 0; right: 0; z-index: 30; pointer-events: none;
+      width: 0; height: 0;
+      border-top: var(--cue-size) solid var(--cue);
+      border-left: var(--cue-size) solid transparent;
+      opacity: 0; transition: opacity 0.25s;
+    }
+    .next-slide-cue.on { opacity: 1; }
+    .reveal.overview .next-slide-cue { display: none; }
+    @media print { .next-slide-cue { display: none; } }
+  </style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- 1. Hook (no title slide) -->
+    <section class="centered">
+      <p>[Hook]</p>
+      <p class="fragment accent">[Punchline]</p>
+      <aside class="notes">
+        <p>[...]</p>
+      </aside>
+    </section>
+
+    <!-- 2. Content slide: sentence title, bullets one at a time -->
+    <section>
+      <h3>[Title as a short sentence.]</h3>
+      <ul>
+        <li class="fragment">[...]</li>
+        <li class="fragment">[...]</li>
+      </ul>
+      <aside class="notes">
+        <p class="fact">[Number, source, caveat]</p>
+        <p>[What I'd say, in my words]</p>
+      </aside>
+    </section>
+
+    <!-- N-1. Callback to the hook -->
+    <section class="centered">
+      <p>[Callback]</p>
+    </section>
+
+    <!-- Inspiration: what I learned from. Link text = creator name. -->
+    <section>
+      <h3>Inspired by...</h3>
+      <ul class="refs">
+        <li><a href="[url]" target="_blank" rel="noopener">[Creator]</a> <span class="ref-title">[topic or title]</span></li>
+      </ul>
+      <aside class="notes">
+        <p>These are the sources and explanations I learned from.</p>
+      </aside>
+    </section>
+
+    <!-- Sources: image credits (title, author, licence) + data, articles, reports -->
+    <section>
+      <h3>Sources</h3>
+      <ul class="refs">
+        <li><a href="[landing page]" target="_blank" rel="noopener">[Image title]</a> <span class="ref-title">[Author], <a href="[licence url]" target="_blank" rel="noopener">[Licence]</a></span></li>
+        <li><a href="[url]" target="_blank" rel="noopener">[Data set / article]</a> <span class="ref-title">[Publisher, year, licence]</span></li>
+      </ul>
+    </section>
+
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/notes/notes.js"></script>
+<!-- Only if the deck has formulas:
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/math/math.js"></script>
+     and add RevealMath.KaTeX to plugins. -->
+<script>
+  Reveal.initialize({
+    plugins: [RevealNotes],
+    hash: true,
+    slideNumber: true,
+    center: false,
+    transitionSpeed: "fast",
+    autoPlayMedia: false,
+  });
+
+  // Next-slide cue: lit when no fragment is left and there is a next slide.
+  const cue = document.createElement("div");
+  cue.className = "next-slide-cue";
+  document.querySelector(".reveal").appendChild(cue);
+  const updateCue = () =>
+    cue.classList.toggle("on", !Reveal.availableFragments().next && !Reveal.isLastSlide());
+  ["ready", "slidechanged", "fragmentshown", "fragmenthidden"].forEach(e => Reveal.on(e, updateCue));
+</script>
+</body>
+</html>
