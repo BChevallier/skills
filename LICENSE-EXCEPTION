@@ -1,0 +1,23 @@
+Presentation Exception
+Additional permission under GNU GPL version 3 section 7
+
+This repository is licensed under the GNU General Public License version 3
+(see LICENSE), with the following additional permission.
+
+As a special exception, you may create a presentation ("deck") that
+contains all or part of
+
+  - create-presentation/assets/template.html, and
+  - the HTML, CSS and JavaScript snippets in create-presentation/references/patterns.md,
+
+and distribute that deck under terms of your choice, without the deck becoming
+subject to the GNU General Public License. This covers the deck as a whole,
+including any changes you make to the copied template or snippets inside it.
+
+This exception does not cover distributing the skill itself, or a modified
+version of it, as a skill, template or tool for making presentations. That
+stays under the GNU General Public License.
+
+If you modify this repository, you may extend this exception to your version,
+but you are not obliged to. If you don't, delete this exception from your
+version.

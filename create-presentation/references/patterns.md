@@ -1,6 +1,6 @@
 # Reveal patterns
 
-Copy and adapt.
+Copy and adapt. Decks built from these snippets and from `assets/template.html` may be published under any terms (see `LICENSE-EXCEPTION` at the repository root).
 
 ## Quote slide
 ```html
