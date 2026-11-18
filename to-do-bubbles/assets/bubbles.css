@@ -75,6 +75,7 @@
   .boxHead { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
   .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
   .boxName { font-weight: 650; flex: 1; }
+  .boxName .tagInput { font: inherit; color: inherit; background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; outline: none; }
   .boxHours { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mini { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); margin: 8px 0 6px; overflow: hidden; }
   .mini i { display: block; height: 100%; border-radius: 2px; }

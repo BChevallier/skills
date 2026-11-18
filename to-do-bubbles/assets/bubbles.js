@@ -226,7 +226,7 @@ function soloColor(g) {
 const tc = (g) => data && data.multi ? g.color : soloColor(g);    // the colour a tag shows in the current view
 
 const owner = new WeakMap();
-let shown = [], primary = null, viewPos = new Map(), renaming = null, titleEditing = false, tabDrag = false, justDragged = false;
+let shown = [], primary = null, viewPos = new Map(), renaming = null, tagRenaming = null, titleEditing = false, tabDrag = false, justDragged = false;
 // Sheets are never deleted, only archived: they stay in the document but are never shown again.
 // There is deliberately no way to restore one from the page.
 const live = () => doc.sheets.filter((s) => !s.archived);
@@ -375,6 +375,19 @@ function startTitleRename() {       // double-click the tracker name to rename t
   inp.oninput = () => { inp.size = Math.max(6, inp.value.length + 1); };
   inp.onkeydown = (e) => { if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); };
   inp.onblur = () => done(true);
+}
+function startTagRename(tagId) {   // double-click a tag's name in its box to rename the tag
+  const g = tagById(tagId), el = document.querySelector(`.box[data-box="${CSS.escape(tagId)}"] .bname`);
+  if (readOnly || !g || !el || tagRenaming) return; tagRenaming = tagId;
+  const inp = document.createElement("input");
+  inp.className = "tinput tagInput"; inp.value = g.name; inp.size = Math.max(6, g.name.length + 1);
+  el.replaceWith(inp); inp.focus(); inp.select();
+  const done = (keep) => { if (!tagRenaming) return; tagRenaming = null;
+    const v = inp.value.trim(); if (keep && v && v !== g.name) { g.name = v; changed(); } else refresh(); };
+  inp.oninput = () => { inp.size = Math.max(6, inp.value.length + 1); };
+  inp.onkeydown = (e) => { if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); };
+  inp.onblur = () => done(true);
+  inp.onclick = inp.onpointerdown = (e) => e.stopPropagation();       // clicks in the field don't fold the box or start a hold
 }
 $("title").title = "Double-click to rename";
 $("title").ondblclick = startTitleRename;
@@ -765,6 +778,7 @@ function rowHtml(t, boxKey, child) {
   return h;
 }
 function renderBoxes(t) {
+  if (tagRenaming) return;           // keep the open name field; the lists catch up when it closes
   const groups = data.tags.filter((g) => !t.per[g.id].closed).map((g) => ({ key: g.id, name: g.name, color: tc(g), done: t.per[g.id].done, total: t.per[g.id].total }));
   const open = topLevel().filter((x) => !isDone(x));
   if (open.some((x) => !effTags(x).length)) groups.push({ key: "", name: "No tag", color: "#8e96aa", done: null });
@@ -775,7 +789,7 @@ function renderBoxes(t) {
     const kidsHidden = mine.some((x) => kids(x).some((c) => hidden.has(c.id)));
     const full = openBoxes.has(g.key), shown = full ? vis : vis.slice(0, LIST_DEFAULT);
     let h = `<div class="box" data-box="${esc(g.key)}"><div class="boxHead" data-act="toggle"${g.key && !mine.length ? " data-empty" : ""}>${g.key && !mine.length ? `<span class="tagHold" style="--c:${esc(g.color)}">${holdSvg}` : ""}<span class="dot" ${g.key ? 'data-act="color" title="Change colour"' : ""} style="background:${esc(g.color)}"></span>${g.key && !mine.length ? "</span>" : ""}`
-      + `<span class="boxName">${esc(g.name)}${data.multi && g.key ? `<span class="boxSheet">${esc(sheetOf(tagById(g.key)).name)}</span>` : ""}</span><span class="boxHours">${g.done === null ? vis.length + " open" : dec(g.done) + " / " + dec(g.total) + " h"}</span><button class="ghost addIn" data-act="add" title="Add a to-do here">+</button></div>`;
+      + `<span class="boxName"><span class="bname"${g.key && !readOnly ? ' title="Double-click to rename"' : ""}>${esc(g.name)}</span>${data.multi && g.key ? `<span class="boxSheet">${esc(sheetOf(tagById(g.key)).name)}</span>` : ""}</span><span class="boxHours">${g.done === null ? vis.length + " open" : dec(g.done) + " / " + dec(g.total) + " h"}</span><button class="ghost addIn" data-act="add" title="Add a to-do here">+</button></div>`;
     if (g.done !== null) h += `<div class="mini"><i style="width:${g.total ? 100 * g.done / g.total : 0}%;background:${esc(g.color)}"></i></div>`;
     h += shown.length ? shown.map((x) => rowHtml(x, g.key, false)).join("") : `<div class="empty">Nothing open here.${g.key ? " Hold the title to finish this area." : ""}</div>`;
     if (showHidden.has(g.key)) h += hid.map((x) => rowHtml(x, g.key, false)).join("");
@@ -814,6 +828,10 @@ $("boxes").addEventListener("click", (e) => {
   const box = a.closest(".box").dataset.box, row = a.closest(".row"), id = row && row.dataset.id, act = a.dataset.act;
   if (act === "color") { openPalette(box, a); e.stopPropagation(); return; }
   if (act === "add") { if (!readOnly) openEdit(null, box); return; }
+  if (act === "toggle" && e.detail === 2 && box && !readOnly && e.target.closest(".bname")) {   // double-click a tag name: rename it
+    openBoxes.has(box) ? openBoxes.delete(box) : openBoxes.add(box);   // undo the first click's toggle
+    refresh(); startTagRename(box); return;
+  }
   if (act === "toggle") openBoxes.has(box) ? openBoxes.delete(box) : openBoxes.add(box);
   else if (act === "caret") openParents.has(box + id) ? openParents.delete(box + id) : openParents.add(box + id);
   else if (act === "poof") hidden.add(id);

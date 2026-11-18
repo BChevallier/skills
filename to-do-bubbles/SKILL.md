@@ -81,7 +81,7 @@ The same JSON for both variants:
     (picked by the user), else the next free far-apart hue. With several sheets open, tags show `color`
     (the sheet's family shade) so projects stay apart. Clicking a tag's dot edits whichever applies to
     the current view. Never write `solo` unless the user picks a colour.
-- **Tracker name** (`name`) is renamed by double-clicking it in the header, like a sheet name.
+- **Renaming:** double-click the tracker name in the header, a sheet tab, or a tag's name in its list box.
 - **Header progress bar** (computed in `totals()` in `bubbles.js`) works in estimated hours only:
   - *h done* = `estimate_h` of finished to-dos + the done share (`progress`) of open to-dos' `estimate_h`.
     `actual_h` never counts here; it only feeds the done drawer's estimate-vs-real comparison.
