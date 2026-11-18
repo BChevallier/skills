@@ -82,6 +82,12 @@ The same JSON for both variants:
     (the sheet's family shade) so projects stay apart. Clicking a tag's dot edits whichever applies to
     the current view. Never write `solo` unless the user picks a colour.
 - **Tracker name** (`name`) is renamed by double-clicking it in the header, like a sheet name.
+- **Header progress bar** (computed in `totals()` in `bubbles.js`) works in estimated hours only:
+  - *h done* = `estimate_h` of finished to-dos + the done share (`progress`) of open to-dos' `estimate_h`.
+    `actual_h` never counts here; it only feeds the done drawer's estimate-vs-real comparison.
+  - *h left* = the open share of open to-dos + every open tag's "not planned yet" hours
+    (`estimate_h` minus planned to-do hours). Sheet tabs show *h left* by the same rule.
+  - Bar = done ÷ (done + left). Keep this rule when changing the header.
 - **To-dos** are specific actions ("Solder the fan connector"), never areas ("Electronics").
   - `tags`: zero or more tag ids **of the same sheet**; the first gives the colour in lists.
   - `parent`: id of a parent to-do in the same sheet, or null. One level of nesting. A parent's hours
