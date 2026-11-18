@@ -9,12 +9,13 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/theme/black.css">
   <style>
+    /* ===== FIXED: black surface, white text, one accent colour ===== */
     :root {
       --surface: #000000;
       --text: #ffffff;
       --text-secondary: #c3c2b7;
       --muted: #898781;
-      --accent: #d95926;
+      --accent: #d95926;            /* [ACCENT] set per deck */
       --r-background-color: var(--surface);
       --r-main-color: var(--text);
       --r-heading-color: var(--text);
@@ -22,8 +23,9 @@
     }
     .reveal-viewport { background: var(--surface); }
 
-    /* Left-aligned by default; reveal's vertical centring is off (center: false),
-       so every slide starts at the top and titles sit at the same height. */
+    /* ===== FIXED: slide titles sit at the same height on every slide =====
+       reveal's vertical centring is off (center: false), so every slide starts
+       at the top, and a slide's first h2/h3 always gets the same margin. */
     .reveal .slides { text-align: left; }
     .reveal .slides section > h2:first-child,
     .reveal .slides section > h3:first-child { margin: 0.6em 0 0.5em; }
@@ -52,7 +54,7 @@
     .reveal .slides section.with-footnote { height: 100%; display: flex !important; flex-direction: column; }
     .footnote { margin-top: auto; margin-bottom: 1em; font-size: 0.5em; color: var(--muted); }
 
-    /* Inspiration + Sources lists */
+    /* Sources, Images (and optional Inspiration) lists */
     .reveal ul.refs { list-style: none; margin: 0; font-size: 0.6em; }
     .reveal ul.refs li { margin: 0 0 0.7em; }
     .reveal ul.refs a { color: var(--text); font-weight: 600; text-decoration: underline;
@@ -62,8 +64,9 @@
     .ref-why { display: block; color: var(--muted); font-style: italic; }
     .refs-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; }
 
-    /* Next-slide cue: a dim corner triangle (top right) shown once the next
-       press changes slide, i.e. the last fragment is out. Tune --cue to taste. */
+    /* ===== FIXED: next-slide cue =====
+       A dim grey triangle in the top right corner, shown once the next press
+       changes slide (no fragment left on this one). */
     :root { --cue: #2e2e2e; --cue-size: 1.6vmin; }
     .next-slide-cue {
       position: absolute; top: 0; right: 0; z-index: 30; pointer-events: none;
@@ -75,83 +78,83 @@
     .next-slide-cue.on { opacity: 1; }
     .reveal.overview .next-slide-cue { display: none; }
     @media print { .next-slide-cue { display: none; } }
+
+    /* ---- deck-specific CSS below this line ---- */
   </style>
 </head>
 <body>
 <div class="reveal">
   <div class="slides">
 
-    <!-- 1. Hook (no title slide) -->
+    <!-- ===== FIXED: opener. Starts on a black slide; the first content fragments in. ===== -->
     <section class="centered">
-      <p>[Hook]</p>
-      <p class="fragment accent">[Punchline]</p>
-      <aside class="notes">
-        <p>[...]</p>
-      </aside>
+      <p class="fragment">[Opening line]</p>
+      <aside class="notes"></aside>
     </section>
 
-    <!-- 2. Content slide: sentence title, bullets one at a time -->
+    <!-- ===== The user's slides go here, in the order they ask for them. ===== -->
+
+    <!-- ===== FIXED: Sources, with Images directly below (vertical stack). Always last. ===== -->
     <section>
-      <h3>[Title as a short sentence.]</h3>
-      <ul>
-        <li class="fragment">[...]</li>
-        <li class="fragment">[...]</li>
-      </ul>
-      <aside class="notes">
-        <p class="fact">[Number, source, caveat]</p>
-        <p>[What I'd say, in my words]</p>
-      </aside>
-    </section>
-
-    <!-- N-1. Callback to the hook -->
-    <section class="centered">
-      <p>[Callback]</p>
-    </section>
-
-    <!-- Inspiration: what I learned from. Link text = creator name. -->
-    <section>
-      <h3>Inspired by...</h3>
-      <ul class="refs">
-        <li><a href="[url]" target="_blank" rel="noopener">[Creator]</a> <span class="ref-title">[topic or title]</span></li>
-      </ul>
-      <aside class="notes">
-        <p>These are the sources and explanations I learned from.</p>
-      </aside>
-    </section>
-
-    <!-- Sources: image credits (title, author, licence) + data, articles, reports -->
-    <section>
-      <h3>Sources</h3>
-      <ul class="refs">
-        <li><a href="[landing page]" target="_blank" rel="noopener">[Image title]</a> <span class="ref-title">[Author], <a href="[licence url]" target="_blank" rel="noopener">[Licence]</a></span></li>
-        <li><a href="[url]" target="_blank" rel="noopener">[Data set / article]</a> <span class="ref-title">[Publisher, year, licence]</span></li>
-      </ul>
+      <section>
+        <h3>Sources</h3>
+        <ul class="refs">
+          <!-- <li><a href="[url]" target="_blank" rel="noopener">[Data set / article / report]</a> <span class="ref-title">[Publisher, year, licence]</span></li> -->
+        </ul>
+      </section>
+      <section>
+        <h3>Images</h3>
+        <ul class="refs">
+          <!-- <li><a href="[landing page]" target="_blank" rel="noopener">[Image title]</a> <span class="ref-title">[Author], <a href="[licence url]" target="_blank" rel="noopener">[Licence]</a>, via [Source]</span></li> -->
+        </ul>
+      </section>
     </section>
 
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/notes/notes.js"></script>
-<!-- Only if the deck has formulas:
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/math/math.js"></script>
-     and add RevealMath.KaTeX to plugins. -->
 <script>
-  Reveal.initialize({
-    plugins: [RevealNotes],
-    hash: true,
-    slideNumber: true,
-    center: false,
-    transitionSpeed: "fast",
-    autoPlayMedia: false,
-  });
+  // Split mode (off by default). List section files here, in order, to load the
+  // slides from sections/ instead of from this file. See references/splitting.md.
+  const SECTIONS = [];
 
-  // Next-slide cue: lit when no fragment is left and there is a next slide.
-  const cue = document.createElement("div");
-  cue.className = "next-slide-cue";
-  document.querySelector(".reveal").appendChild(cue);
-  const updateCue = () =>
-    cue.classList.toggle("on", !Reveal.availableFragments().next && !Reveal.isLastSlide());
-  ["ready", "slidechanged", "fragmentshown", "fragmenthidden"].forEach(e => Reveal.on(e, updateCue));
+  async function loadSections(files) {
+    const parts = await Promise.all(files.map(async (f) => {
+      const r = await fetch(f, { cache: "no-store" });
+      if (!r.ok) throw new Error(f + ": " + r.status);
+      return r.text();
+    }));
+    document.querySelector(".reveal .slides").innerHTML = parts.join("\n");
+  }
+
+  function startDeck() {
+    Reveal.initialize({
+      plugins: [RevealNotes, RevealMath.KaTeX],   // math is always loaded
+      hash: true,
+      slideNumber: true,
+      center: false,                               // keeps titles at the same height
+      transitionSpeed: "fast",
+      autoPlayMedia: false,
+    });
+
+    // Next-slide cue: lit when no fragment is left and there is a next slide.
+    const cue = document.createElement("div");
+    cue.className = "next-slide-cue";
+    document.querySelector(".reveal").appendChild(cue);
+    const updateCue = () =>
+      cue.classList.toggle("on", !Reveal.availableFragments().next && !Reveal.isLastSlide());
+    ["ready", "slidechanged", "fragmentshown", "fragmenthidden"].forEach((e) => Reveal.on(e, updateCue));
+  }
+
+  if (SECTIONS.length) {
+    loadSections(SECTIONS).then(startDeck).catch((e) => {
+      document.body.innerHTML = '<pre style="color:#f88;padding:2em">Could not load sections: ' + e.message + "</pre>";
+    });
+  } else {
+    startDeck();
+  }
 </script>
 </body>
 </html>

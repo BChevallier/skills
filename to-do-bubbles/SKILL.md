@@ -38,6 +38,7 @@ Every tracker runs one of two ways. **When creating one, always ask which**, unl
 - **Artifact** (only on claude.ai, where Claude can publish artifacts with a database): a published page
   holding `index.html`, `bubbles.css` and `bubbles.js`. The data is one document, `tracker/main`, in the
   artifact's database. Find existing trackers by listing the user's artifacts and looking for `Bubbles`.
+  An artifact tracker can be **shared and edited by several people** (see "Share a tracker").
 - **Localhost:** a folder on the user's computer with the four asset files plus `projects/<name>.json`
   (one tracker per file). The user runs `python3 serve.py` and opens `http://localhost:8000/?p=<name>`.
 
@@ -70,7 +71,8 @@ The same JSON for both variants:
 ```
 
 - **Hours** are decimal multiples of 0.25 (15 min), everywhere.
-- **Sheets:** `id`, `name`, optional `color` (colour family). Omit `color` and the page picks a free one.
+- **Sheets:** `id`, `name`, optional `color` (colour family). The order of `sheets` is the tab order; users
+  reorder sheets by dragging the tabs. Omit `color` and the page picks a free one.
   An archived sheet also has `archived: true` and `archived_at` (`YYYY-MM-DD`); keep it in the document.
 - **Tags** are areas of work. `estimate_h` is a rough total for the area; hours not yet covered by
   to-dos show as a dashed "not planned yet" bubble. Omit `color` and the page gives the next free shade
@@ -100,8 +102,9 @@ The same JSON for both variants:
 2. Build it:
    - **Artifact:** write `assets/index.html` to a working file with `PROJECT` replaced. Publish it
      together with `bubbles.css` and `bubbles.js` from `assets/` (title `"<project> — Bubbles"`, icon
-     `chart`). Give it a database that viewers can read and only the owner can write, plus the
-     viewer-identity capability. Write one document, `tracker/main` =
+     `chart`). Declare the capabilities
+     `{"db": {"rules": [{"path": "", "read": "view", "write": "interact"}]}, "user": {}}`: everyone it is
+     shared with can read it, and Contributors and up can edit it. Write one document, `tracker/main` =
      `{"name": "<project>", "sheets": [{"id": "s1", "name": "Main", "tags": [], "todos": []}]}`, then read
      it back to check.
    - **Localhost:** ask which folder on their computer. Copy `index.html` (title replaced), `bubbles.css`,
@@ -144,7 +147,8 @@ The same JSON for both variants:
 3. Write:
    - **Artifact:** change the whole document in memory, then write it back in one `set`, conditional on
      the version you read. If that is refused because the document changed, read it again and redo the
-     change on the fresh data. The open page updates live.
+     change on the fresh data. The open page updates live. Do the read and the write right after each
+     other: if the tracker is shared, someone may be editing it in the page at the same time.
    - **Localhost:** follow "Keep localhost data safe" below.
 4. Check: every to-do id that existed before is still there (unless the user asked to delete it), and
    every new one was added. Tell the user what was added, in one short line.
@@ -154,6 +158,28 @@ finished fields. When suggesting what to do next, prefer small, concrete, unbloc
 may only have 15 minutes.
 
 ---
+
+## Share a tracker
+
+Only for artifact trackers. The owner shares it from the artifact's Share menu, and each person's role
+decides what they can do:
+
+| Role | In the tracker |
+|---|---|
+| Viewer, Commenter | Sees everything, read only. The header shows "view only" and the editing controls are hidden. |
+| Contributor ("can interact") | Adds, edits, pops and deletes to-dos, tags and sheets. Can't change the page's code. |
+| Editor | Same as Contributor, and can also republish the page. |
+
+Several people can edit at the same time. Each save takes a short lock, reads the latest version and
+merges its changes into it. Changes to different to-dos, tags, sheets or fields all survive. If two people
+change the same field of the same to-do, the later save wins for that field only. `references/design.md`
+explains the merge.
+
+**A tracker made before sharing existed** saves by overwriting, and only its owner can edit it. To make it
+shareable, republish it with the current `bubbles.js` and `bubbles.css` from `assets/`, and with the
+capabilities from mode 1. Its data stays as it is.
+
+The database also holds a document `tracker/lock`, which is the save lock. Never edit or delete it.
 
 ## Keep localhost data safe
 

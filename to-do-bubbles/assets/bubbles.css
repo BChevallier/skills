@@ -19,6 +19,9 @@
     gap: 10px 16px; padding: 8px 18px 12px; background: linear-gradient(rgba(26,29,34,.97) 70%, rgba(26,29,34,0));
     pointer-events: none; }
   header > * { pointer-events: auto; }
+  /* header text can't be selected, so a stray drag never highlights or copies it; rename inputs still can */
+  header { -webkit-user-select: none; user-select: none; }
+  header input { -webkit-user-select: text; user-select: text; }
   /* sheet tabs: their own row, above the title and progress bar */
   #tabs { flex: 0 0 100%; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none;
     border-bottom: 1px solid var(--line); }
@@ -175,3 +178,16 @@
   #legend .lg span { width: 10px; height: 10px; border-radius: 50%; flex: none; order: 2; }
   #legend .lgSheet { color: var(--text); font-weight: 600; margin-top: 6px; }
   #legend .lgSheet:first-child { margin-top: 0; }
+
+  /* view only: a viewer who may not change a shared tracker sees it without editing controls */
+  #ro { font-size: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }
+  #ro[hidden] { display: none; }
+  body.ro #addBtn { visibility: hidden; }   /* keeps its place: the list layout lines up with it */
+  body.ro #tabs .tadd, body.ro #tabs .tdel, body.ro .addIn, body.ro #cardDel, body.ro #cardAddLink { display: none; }
+  body.ro .hold, body.ro .boxHead, body.ro .boxHead .dot, body.ro #tabs .tdot { cursor: default; }
+  body.ro #cardTitle, body.ro #cardEst, body.ro #cardTags .tagPick, body.ro #cardProg { cursor: default; pointer-events: none; }
+
+  /* drag a tab sideways to reorder the sheets */
+  #tabs .tab.dragging { position: relative; z-index: 2; cursor: grabbing; background: rgba(255,255,255,.07); border-radius: 6px 6px 0 0; }
+  #tabs .tab.dropBefore { box-shadow: inset 2px 0 0 var(--text); }
+  #tabs .tab.dropAfter { box-shadow: inset -2px 0 0 var(--text); }

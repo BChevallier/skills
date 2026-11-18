@@ -2,7 +2,7 @@
 
 Copy and adapt.
 
-## Quote slide (opener or closer)
+## Quote slide
 ```html
 <section class="centered">
   <blockquote>
@@ -47,13 +47,13 @@ Copy and adapt.
 <section>
   <h3>How VO₂ kinetics are usually modelled.</h3>
   <div class="r-stack">
-    <img src="figures/model_data_dark.png" alt="...">
-    <img class="fragment" src="figures/model_fit_dark.png" alt="...">
-    <img class="fragment" src="figures/model_phases_dark.png" alt="...">
+    <a href="[source]" target="_blank" rel="noopener"><img src="figures/model_data_dark.png" alt="..."></a>
+    <a class="fragment" href="[source]" target="_blank" rel="noopener"><img src="figures/model_fit_dark.png" alt="..."></a>
+    <a class="fragment" href="[source]" target="_blank" rel="noopener"><img src="figures/model_phases_dark.png" alt="..."></a>
   </div>
 </section>
 ```
-Swap an empty frame for a filled one: same `data-fragment-index` on a `fragment fade-out` image and a `fragment` image.
+In an `r-stack`, the `fragment` class goes on the link, not on the image. To swap an empty frame for a filled one, give a `fragment fade-out` link and a `fragment` link the same `data-fragment-index`.
 
 ## Same object changes between slides (auto-animate)
 ```html
@@ -93,15 +93,24 @@ Also works for a graph whose axis changes (`data-id` on the wrapper) and for col
 <h3>A simple, robust, meaningful, and repeatable marker.<span class="fragment accent"> Maybe.</span></h3>
 ```
 
+## Single image
+```html
+<section>
+  <h3>[Title.]</h3>
+  <figure><a href="[original source page]" target="_blank" rel="noopener"><img src="media/[file]" alt="[what it shows]"></a></figure>
+</section>
+```
+
 ## Two figures side by side
 ```html
 <div style="display: flex; gap: 0.6em;">
-  <figure style="flex: 1"><img src="figures/a_dark.png" alt="..." style="width: 100%"><p class="graph-label">Runner</p></figure>
-  <figure style="flex: 1"><img src="figures/b_dark.png" alt="..." style="width: 100%"><p class="graph-label">Cyclist</p></figure>
+  <figure style="flex: 1"><a href="[source]" target="_blank" rel="noopener"><img src="figures/a_dark.png" alt="..." style="width: 100%"></a><p class="graph-label">Runner</p></figure>
+  <figure style="flex: 1"><a href="[source]" target="_blank" rel="noopener"><img src="figures/b_dark.png" alt="..." style="width: 100%"></a><p class="graph-label">Cyclist</p></figure>
 </div>
 ```
 
 ## Video
+Videos get no link wrapper, because it would block the controls. Credit the source on the Images slide instead.
 ```html
 <section class="centered"><video data-src="media/anim_dark.mp4" muted playsinline controls style="max-height: 80vh"></video></section>
 ```
@@ -109,7 +118,17 @@ Also works for a graph whose axis changes (`data-id` on the wrapper) and for col
 ## Table whose cells jump to detail slides
 Give each detail slide an `id` and link `<a href="#/gdp-spd">-0.76</a>` (hash: true is set).
 
-## Academic Inspiration slide (two columns)
+## Inspiration slide (only on request, just before Sources)
+What the speaker learned from. The link text is the creator's name, not a URL or a title.
+```html
+<section>
+  <h3>Inspired by...</h3>
+  <ul class="refs">
+    <li><a href="[url]" target="_blank" rel="noopener">[Creator]</a> <span class="ref-title">[topic or title]</span></li>
+  </ul>
+</section>
+```
+For an academic talk, use two columns: `Author (year)` as the link, then the title, then one line on why it matters.
 ```html
 <section>
   <h3>Inspiration</h3>

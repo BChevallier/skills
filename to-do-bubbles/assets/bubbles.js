@@ -1,6 +1,6 @@
 "use strict";
 // Bubbles — app code. The page shell (index.html) only links bubbles.css and this file.
-document.body.insertAdjacentHTML("afterbegin", "<canvas id=\"c\"></canvas>\n\n<div id=\"shade\"></div>\n<header>\n  <nav id=\"tabs\"></nav>\n  <span id=\"title\">Bubbles</span>\n  <select id=\"projSel\" hidden></select>\n  <span id=\"doneH\" class=\"hnum\"></span>\n  <div id=\"bar\"><div id=\"barFill\"></div></div>\n  <span id=\"leftH\" class=\"hnum\"></span>\n  <button id=\"addBtn\" title=\"Add a tag\">+</button>\n  <span id=\"sync\"></span>\n</header>\n\n<main>\n  <div id=\"spacer\"></div>\n  <div id=\"sheet\">\n  <div id=\"boxes\"></div>\n  <div id=\"done\"><div class=\"doneTitle\">Done</div><div id=\"doneStats\"></div><details id=\"doneList\"><summary>Completed to-dos</summary><div id=\"doneBody\"></div></details></div>\n  </div>\n</main>\n\n<div id=\"legend\"></div>\n<div id=\"tip\"></div>\n<div id=\"pal\"></div>\n<div id=\"card\"></div>\n<div id=\"veil\"></div>\n<div class=\"dlg\" id=\"finishDlg\"></div>\n<div class=\"dlg\" id=\"editDlg\"></div>\n<div id=\"loading\">Loading\u2026</div>\n<div id=\"fatal\"><div><h2>Bubbles can't start</h2><p id=\"fatalMsg\" style=\"color:#8e96aa\"></p></div></div>\n\n");
+document.body.insertAdjacentHTML("afterbegin", "<canvas id=\"c\"></canvas>\n\n<div id=\"shade\"></div>\n<header>\n  <nav id=\"tabs\"></nav>\n  <span id=\"title\">Bubbles</span>\n  <select id=\"projSel\" hidden></select>\n  <span id=\"doneH\" class=\"hnum\"></span>\n  <div id=\"bar\"><div id=\"barFill\"></div></div>\n  <span id=\"leftH\" class=\"hnum\"></span>\n  <button id=\"addBtn\" title=\"Add a tag\">+</button>\n  <span id=\"ro\" class=\"hnum\" hidden>view only</span><span id=\"sync\"></span>\n</header>\n\n<main>\n  <div id=\"spacer\"></div>\n  <div id=\"sheet\">\n  <div id=\"boxes\"></div>\n  <div id=\"done\"><div class=\"doneTitle\">Done</div><div id=\"doneStats\"></div><details id=\"doneList\"><summary>Completed to-dos</summary><div id=\"doneBody\"></div></details></div>\n  </div>\n</main>\n\n<div id=\"legend\"></div>\n<div id=\"tip\"></div>\n<div id=\"pal\"></div>\n<div id=\"card\"></div>\n<div id=\"veil\"></div>\n<div class=\"dlg\" id=\"finishDlg\"></div>\n<div class=\"dlg\" id=\"editDlg\"></div>\n<div id=\"loading\">Loading\u2026</div>\n<div id=\"fatal\"><div><h2>Bubbles can't start</h2><p id=\"fatalMsg\" style=\"color:#8e96aa\"></p></div></div>\n\n");
 /* =====================================================================
    Bubbles — one-file template. Sections:
    1 state + model   2 server sync   3 physics   4 canvas drawing
@@ -69,6 +69,8 @@ function totals() {
 
 // ---------- 2. server sync ----------
 let saveTimer = null, saving = false, dirty = false, standalone = false, dbRef = null, looping = false;
+let dbNs = null, base = null, readOnly = false;   // shared tracker: database, the document as last read, view-only viewer
+const TAB = "tab-" + Math.random().toString(36).slice(2, 10), clone = (v) => JSON.parse(JSON.stringify(v)), sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, key) => (o[key] = x[key], o), {}) : x);
 function setSync(cls, title) { $("sync").textContent = cls === "err" ? title : ""; }   // only speaks up on errors
 async function api(path, opts) {
@@ -82,7 +84,9 @@ async function load() {
   adopt(r.body.data); version = r.body.version;
   refresh(); if (cardId) drawCard();
 }
-function changed() { commitView(); dirty = true; refresh(); clearTimeout(saveTimer); saveTimer = setTimeout(save, 250); setSync("busy", "Saving…"); }
+function changed() {
+  if (readOnly) { if (base) adopt(clone(base)); refresh(); if (cardId) drawCard(); return; }   // view only: undo any slip
+  commitView(); dirty = true; refresh(); clearTimeout(saveTimer); saveTimer = setTimeout(save, 250); setSync("busy", "Saving…"); }
 async function save() {
   if (standalone) {              // no server (e.g. shared demo page): keep changes in this browser only
     try { localStorage.setItem("bubbles:" + project, JSON.stringify(doc)); } catch (e) {}
@@ -91,8 +95,8 @@ async function save() {
   if (saving) { saveTimer = setTimeout(save, 200); return; }
   saving = true; dirty = false;
   if (dbRef) {                  // published tracker: the whole project is one document in the artifact's database
-    try { await dbRef.set(JSON.parse(JSON.stringify(doc))); setSync("", ""); }
-    catch (e) { setSync("err", e && e.code === "invalid_argument" ? "You can look at this tracker but not change it" : "Could not save (" + ((e && e.code) || "error") + ")"); }
+    try { await saveDb(); setSync("", ""); }
+    catch (e) { if (e && e.code === "invalid_argument") goReadOnly(); else setSync("err", "Could not save (" + ((e && e.code) || "error") + ")"); }
     saving = false; return;
   }
   try {
@@ -113,6 +117,68 @@ setInterval(async () => {        // pick up edits made to the JSON file by someo
     if (r.status === 200 && r.body.version !== version && !dirty && !saving) await load();
   } catch (e) {}
 }, 3000);
+
+// ---------- 2a. shared trackers: merging saves ----------
+// Several people can edit a shared tracker at once, and a database write replaces the whole document.
+// So a save never writes blindly: it takes a short lease (two saves never interleave), reads the latest
+// document, merges this view's changes into it, and writes the result. Changes to different to-dos, tags,
+// sheets or fields all survive; when two people change the same field, the later save wins for that field.
+const isList = (a) => Array.isArray(a) && a.every((x) => x && typeof x === "object" && !Array.isArray(x) && "id" in x);
+const isObj = (o) => o && typeof o === "object" && !Array.isArray(o);
+function merge3(b, m, t) {        // b = document as last read, m = this view, t = latest saved
+  const same = (x, y) => canon(x) === canon(y);
+  if (same(m, b)) return t;
+  if (same(t, b)) return m;
+  const arrs = [b, m, t].filter((x) => x !== undefined);
+  if (arrs.every(Array.isArray) && arrs.every(isList)) return mergeList(b || [], m || [], t || []);
+  if (arrs.every(isObj)) {
+    const out = {};
+    new Set([...Object.keys(b || {}), ...Object.keys(m), ...Object.keys(t)]).forEach((k) => {
+      const v = merge3(b && b[k], m[k], t[k]); if (v !== undefined) out[k] = v; });
+    return out;
+  }
+  return m;                       // both changed the same value: the later save (this one) wins
+}
+function mergeList(b, m, t) {     // lists of items with ids (sheets, tags, to-dos), merged item by item
+  const B = new Map(b.map((x) => [x.id, x])), M = new Map(m.map((x) => [x.id, x])), T = new Map(t.map((x) => [x.id, x]));
+  const item = (id) => {          // the merged item, or undefined when it was deleted on one side and untouched on the other
+    const b0 = B.get(id), m0 = M.get(id), t0 = T.get(id);
+    if (m0 && t0) return merge3(b0, m0, t0);
+    const one = m0 || t0; return b0 && canon(one) === canon(b0) ? undefined : one;   // deleted but changed elsewhere: keep
+  };
+  const moved = (x) => {          // did this side change the order of the items it kept? (adding or deleting doesn't count)
+    const X = new Set(x.map((y) => y.id)), keptB = b.filter((y) => X.has(y.id)).map((y) => y.id);
+    return x.filter((y) => B.has(y.id)).map((y) => y.id).join("\n") !== keptB.join("\n"); };
+  const [P, Q] = moved(m) && !moved(t) ? [m, t] : [t, m];                      // whoever reordered sets the order (them, if both did)
+  const out = [], has = (id) => out.some((o) => o.id === id);
+  P.forEach((x) => { const v = item(x.id); if (v !== undefined) out.push(v); });
+  Q.forEach((x, i) => {
+    if (has(x.id)) return; const v = item(x.id); if (v === undefined) return;
+    const prev = Q.slice(0, i).reverse().find((y) => has(y.id));
+    out.splice(prev ? out.findIndex((o) => o.id === prev.id) + 1 : 0, 0, v);   // keep it next to its neighbour
+  });
+  return out;
+}
+async function saveDb() {
+  const lock = dbNs.doc("tracker/lock");
+  for (let i = 0; i < 25; i++) {  // wait up to about 5 s for another person's save to finish
+    let r; try { r = await lock.acquire({ holder: TAB, ttlMs: 2000 }); } catch (e) { break; }
+    if (r && r.acquired) break; await sleep(200);
+  }
+  const mine = clone(doc), snap = await dbRef.get();
+  const theirs = snap.exists ? normalize(clone(snap.data())) : clone(base || mine);
+  const merged = base && canon(theirs) !== canon(base) ? merge3(base, mine, theirs) : mine;
+  await dbRef.set(clone(merged));
+  base = clone(merged);
+  const next = dirty ? merge3(mine, clone(doc), merged) : merged;               // keep edits made while saving
+  if (canon(next) !== canon(doc)) { adopt(clone(next)); refresh(); if (cardId) drawCard(); }
+}
+function goReadOnly() {           // a viewer who may not change the tracker: same view, no editing
+  if (readOnly) return; readOnly = true;
+  document.body.classList.add("ro"); closeCard(); hideDlgs(); $("pal").style.display = "none";
+  $("title").title = ""; $("ro").hidden = false;
+  if (base) adopt(clone(base)); refresh();
+}
 
 function refresh() {
   if (!titleEditing) $("title").textContent = doc.name || project;
@@ -160,7 +226,7 @@ function soloColor(g) {
 const tc = (g) => data && data.multi ? g.color : soloColor(g);    // the colour a tag shows in the current view
 
 const owner = new WeakMap();
-let shown = [], primary = null, viewPos = new Map(), renaming = null, titleEditing = false;
+let shown = [], primary = null, viewPos = new Map(), renaming = null, titleEditing = false, tabDrag = false, justDragged = false;
 // Sheets are never deleted, only archived: they stay in the document but are never shown again.
 // There is deliberately no way to restore one from the page.
 const live = () => doc.sheets.filter((s) => !s.archived);
@@ -209,10 +275,10 @@ function showSheets(ids, prim) {
 }
 function sheetLeft(s) { const keep = data; data = s; const t = totals(); data = keep; return t.remaining; }
 function renderTabs() {
-  const nav = $("tabs"); if (!nav || renaming) return;
+  const nav = $("tabs"); if (!nav || renaming || tabDrag) return;
   const half = (h) => String(Math.round(h * 2) / 2), one = shown.length === 1;
   nav.innerHTML = live().map((s) => { const on = shown.includes(s.id);
-    return `<span class="tab${on ? " on" : ""}" data-id="${esc(s.id)}" style="--c:${esc(s.color)}" title="${on ? "Double-click to rename" : "Click to open, shift-click to show alongside"}">`
+    return `<span class="tab${on ? " on" : ""}" data-id="${esc(s.id)}" style="--c:${esc(s.color)}" title="${readOnly ? "" : (on ? "Double-click to rename, drag to reorder" : "Click to open, shift-click to show alongside, drag to reorder")}">`
     + `<span class="tdot" data-act="color" title="Change this project's colours"></span>`
     + `<span class="tname">${esc(s.name)}</span><span class="tleft">${half(sheetLeft(s))} h</span>`
     + (on && one && live().length > 1 ? `<span class="tdel" title="Hold to archive this sheet"><i></i>×</span>` : `<span class="tdel off"><i></i>×</span>`)   // the cross always keeps its space, so tabs never shift
@@ -221,7 +287,7 @@ function renderTabs() {
   nav.querySelectorAll(".tab").forEach((el) => {
     const id = el.dataset.id, s = doc.sheets.find((x) => x.id === id);
     el.onclick = (e) => {
-      if (e.target.closest(".tdel")) return;
+      if (justDragged || e.target.closest(".tdel")) return;
       if (e.target.closest(".tdot")) { openSheetPalette(s, e.target); return; }
       if (e.shiftKey) {
         if (!shown.includes(id)) showSheets([...shown, id], id);
@@ -229,15 +295,16 @@ function renderTabs() {
       } else if (!(one && shown[0] === id)) showSheets([id], id);
     };
     el.onmousedown = (e) => { if (e.shiftKey) e.preventDefault(); };                  // no text selection on shift-click
-    el.ondblclick = (e) => { if (shown.includes(id) && !e.target.closest(".tdel,.tdot")) startRename(el, s); };
+    el.onpointerdown = (e) => startTabDrag(e, el, s, nav);
+    el.ondblclick = (e) => { if (!readOnly && shown.includes(id) && !e.target.closest(".tdel,.tdot")) startRename(el, s); };
   });
-  nav.querySelector(".tadd").onclick = () => {
+  nav.querySelector(".tadd").onclick = () => { if (readOnly) return;
     const s = { id: "s" + Math.random().toString(36).slice(2, 8), name: "New sheet", tags: [], todos: [],
       color: FAMILIES.find((c) => !live().some((o) => o.color === c)) || FAMILIES[live().length % FAMILIES.length] };
     commitView(); doc.sheets.push(s); showSheets([s.id], s.id); changed();
     startRename(nav.querySelector(`.tab[data-id="${s.id}"]`), s);
   };
-  const del = nav.querySelector(".tdel:not(.off)");                 // hold 0.8 s, like finishing a to-do: archives the sheet
+  const del = readOnly ? null : nav.querySelector(".tdel:not(.off)");                 // hold 0.8 s, like finishing a to-do: archives the sheet
   if (del) {
     let timer = null; const stop = () => { clearTimeout(timer); del.classList.remove("holding"); };
     del.onpointerdown = (e) => { e.stopPropagation(); del.classList.add("holding");
@@ -246,7 +313,37 @@ function renderTabs() {
     del.onpointerup = del.onpointerleave = stop;
   }
 }
+// Drag a tab sideways to reorder the sheets. The order is simply the order of doc.sheets.
+function startTabDrag(e, el, s, nav) {
+  if (readOnly || e.button !== 0 || e.shiftKey || e.target.closest(".tdel,.tdot,.tinput")) return;
+  const x0 = e.clientX, others = [...nav.querySelectorAll(".tab")].filter((t) => t !== el);
+  const mids = others.map((t) => { const r = t.getBoundingClientRect(); return r.left + r.width / 2; });
+  let moved = false, idx = 0;
+  const mark = () => others.forEach((t, i) => {
+    t.classList.toggle("dropBefore", moved && i === idx);
+    t.classList.toggle("dropAfter", moved && idx === others.length && i === others.length - 1); });
+  const move = (ev) => {          // listened for on the window: a fast drag leaves the tab at once
+    const dx = ev.clientX - x0;
+    if (!moved) { if (Math.abs(dx) < 6) return; moved = tabDrag = true; el.classList.add("dragging"); getSelection().removeAllRanges(); }
+    el.style.transform = `translateX(${dx}px)`;
+    idx = mids.filter((m) => m < ev.clientX).length; mark();
+  };
+  const up = (ev) => {
+    removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
+    if (!moved) return;
+    tabDrag = false; justDragged = true; setTimeout(() => { justDragged = false; }, 0);   // the click that follows a drag does nothing
+    el.classList.remove("dragging"); el.style.transform = ""; moved = false; mark();
+    if (ev.type === "pointercancel") return refresh();
+    const L = live().filter((x) => x !== s), before = L[idx];
+    if (live().indexOf(s) === idx) return refresh();                                  // dropped where it was
+    commitView(); doc.sheets.splice(doc.sheets.indexOf(s), 1);
+    doc.sheets.splice(before ? doc.sheets.indexOf(before) : doc.sheets.length, 0, s);
+    changed();
+  };
+  addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+}
 function openSheetPalette(s, dotEl) {    // the dot beside a tab name: pick the project's colour family
+  if (readOnly) return;
   const pal = $("pal"), r = dotEl.getBoundingClientRect();
   const taken = (c) => live().some((o) => o !== s && o.color === c);
   pal.innerHTML = FAMILIES.map((c) => `<span data-c="${c}" class="${c === s.color ? "on" : ""}${taken(c) ? " taken" : ""}" title="${taken(c) ? "Used by " + esc(live().find((o) => o !== s && o.color === c).name) : ""}" style="background:${c}"></span>`).join("");
@@ -256,6 +353,7 @@ function openSheetPalette(s, dotEl) {    // the dot beside a tab name: pick the 
     pal.style.display = "none"; changed(); };
 }
 function startRename(el, s) {
+  if (readOnly) return;
   if (!el) return; renaming = s.id;
   const name = el.querySelector(".tname"), inp = document.createElement("input");
   inp.className = "tinput"; inp.value = s.name; inp.size = Math.max(6, s.name.length + 1);
@@ -267,6 +365,7 @@ function startRename(el, s) {
   inp.onblur = () => done(true);
 }
 function startTitleRename() {       // double-click the tracker name to rename the whole tracker
+  if (readOnly) return;
   const el = $("title"); if (titleEditing || !doc) return; titleEditing = true;
   const cur = doc.name || "", inp = document.createElement("input");
   inp.className = "tinput titleInput"; inp.value = cur; inp.size = Math.max(6, cur.length + 1);
@@ -566,7 +665,7 @@ cv.addEventListener("pointerdown", (e) => {
   const todo = byId(h.id);
   press = { h, x0: e.clientX, y0: e.clientY, dx: h.body.x - w.x, dy: h.body.y - w.y, t0: performance.now(), moved: false,
     isChild: h.id !== h.body.id, leaf: !!todo && !isParent(todo) };
-  if (press.leaf) {
+  if (press.leaf && !readOnly) {
     holdInfo = { id: h.id, x: h.x, y: h.y, r: h.r, t0: press.t0 };
     press.timer = setTimeout(() => { const id = press.h.id; endPress(); askFinish(id); }, HOLD_MS);
   }
@@ -582,7 +681,7 @@ cv.addEventListener("pointermove", (e) => {
     if (!press.moved && Math.hypot(e.clientX - press.x0, e.clientY - press.y0) > 6) {   // it's a drag, not a hold
       press.moved = true; clearTimeout(press.timer); holdInfo = null; $("tip").style.display = "none";
       if (press.isChild) childDrag = { id: press.h.id, r: press.h.r, x: w.x, y: w.y };
-      else drag = { body: press.h.body, ghost: press.leaf && press.h.body.kind === "todo" };
+      else drag = { body: press.h.body, ghost: !readOnly && press.leaf && press.h.body.kind === "todo" };
     }
     if (press.moved) {
       if (childDrag) { childDrag.x = w.x; childDrag.y = w.y; const tg = bodyAt(w.x, w.y, press.h.body); hover = tg ? tg.id : null; }
@@ -692,7 +791,7 @@ let listHold = null;
 function cancelListHold() { if (listHold) { clearTimeout(listHold.timer); listHold.el.classList.remove("holding"); listHold = null; } }
 $("boxes").addEventListener("pointerdown", (e) => {
   const head = e.target.closest(".boxHead[data-empty]");
-  if (head && !e.target.closest("[data-act=color],[data-act=add]")) {     // hold an empty box's title: the area is finished
+  if (head && !readOnly && !e.target.closest("[data-act=color],[data-act=add]")) {     // hold an empty box's title: the area is finished
     const boxEl = head.closest(".box"), g = tagById(boxEl.dataset.box);
     boxEl.classList.add("holding");
     const dr = boxEl.querySelector(".dot").getBoundingClientRect();
@@ -703,7 +802,7 @@ $("boxes").addEventListener("pointerdown", (e) => {
     }, HOLD_MS) };
     return;
   }
-  const el = e.target.closest("[data-act=hold]"); if (!el) return;
+  const el = e.target.closest("[data-act=hold]"); if (!el || readOnly) return;
   const id = el.closest(".row").dataset.id;
   el.classList.add("holding");
   const r = el.getBoundingClientRect(), origin = { x: r.left + 10, y: r.top + 10, color: el.style.getPropertyValue("--c") };
@@ -714,7 +813,7 @@ $("boxes").addEventListener("click", (e) => {
   const a = e.target.closest("[data-act]"); if (!a) return;
   const box = a.closest(".box").dataset.box, row = a.closest(".row"), id = row && row.dataset.id, act = a.dataset.act;
   if (act === "color") { openPalette(box, a); e.stopPropagation(); return; }
-  if (act === "add") { openEdit(null, box); return; }
+  if (act === "add") { if (!readOnly) openEdit(null, box); return; }
   if (act === "toggle") openBoxes.has(box) ? openBoxes.delete(box) : openBoxes.add(box);
   else if (act === "caret") openParents.has(box + id) ? openParents.delete(box + id) : openParents.add(box + id);
   else if (act === "poof") hidden.add(id);
@@ -726,6 +825,7 @@ $("boxes").addEventListener("click", (e) => {
 });
 
 function openPalette(tagId, dotEl) {     // click a box's dot: pick the tag colour from a fixed palette
+  if (readOnly) return;
   const g = tagById(tagId), pal = $("pal"), r = dotEl.getBoundingClientRect(); if (!g) return;
   const solo = !data.multi, cur = tc(g), opts = solo ? SOLO : familyOf(sheetOf(g).color);
   pal.innerHTML = opts.map((c) => `<span data-c="${c}" class="${c === cur ? "on" : ""}" style="background:${c}"></span>`).join("");
@@ -831,6 +931,11 @@ function drawCard() {                 // every field is edited by clicking on it
     inp.onblur = () => end(true);
   };
   $("cardX").onclick = closeCard;
+  if (readOnly) {                 // view only: the card shows the details, nothing in it can be changed
+    ["cardDel", "cardAddLink"].forEach((k) => { const el = $(k); if (el) el.remove(); });
+    $("cardHide").onclick = () => { hidden.add(t.id); closeCard(); refresh(); };
+    return;
+  }
   $("cardTitle").onclick = (e) => field(e.currentTarget, t.title, (v) => { if (v) { t.title = v; changed(); } if (cardId) drawCard(); });
   $("cardTags").onclick = (e) => {
     const ch = e.target.closest("[data-tag]"); if (!ch) return;
@@ -884,6 +989,7 @@ function burst(x, y, color) {
   document.body.appendChild(el); setTimeout(() => el.remove(), 550);
 }
 function askFinish(id, origin) {          // finishing always asks for the real duration
+  if (readOnly) return;
   const t = byId(id); if (!t || isParent(t)) return;
   closeCard();
   const d = $("finishDlg");
@@ -903,6 +1009,7 @@ function askFinish(id, origin) {          // finishing always asks for the real 
 }
 
 function openEdit(id, presetTag) {
+  if (readOnly) return;
   const t = id ? byId(id) : null, d = $("editDlg");
   const picked = new Set(t ? (t.tags || []) : presetTag ? [presetTag] : []), hasKids = t && isParent(t);
   d.innerHTML = `<h3>${t ? "Edit to-do" : "New to-do"}</h3><label>What exactly? (be specific)</label><input type="text" id="edTitle" value="${t ? esc(t.title) : ""}">`
@@ -931,6 +1038,7 @@ function openEdit(id, presetTag) {
   $("edTitle").onkeydown = (e) => { if (e.key === "Enter") submit(); };
 }
 function openTagDlg() {            // header "+": a new tag (area of work)
+  if (readOnly) return;
   const d = $("editDlg"); const home = data.multi ? (doc.sheets.find((s) => s.id === primary) || data.sheets[0]) : data, solo = !data.multi, shade = nextShade(home), fam = solo ? SOLO : familyOf(home.color);
   let col = solo ? (SOLO.find((c) => !home.tags.some((g) => soloColor(g) === c)) || SOLO[0]) : shade;
   d.innerHTML = `<h3>New tag</h3><label>Area of work</label><input type="text" id="tgName" placeholder="e.g. Assembly">`
@@ -978,7 +1086,8 @@ async function startDb() {              // published tracker: data lives in the 
   project = document.title; adopt({ name: document.title, tags: [], todos: [] });
   let db = null; try { db = window.claude ? await window.claude.use("db") : null; } catch (e) {}
   if (!db) return fatal("The saved data of this tracker can't be reached in this view.");
-  dbRef = db.doc("tracker/main");
+  dbNs = db; dbRef = db.doc("tracker/main");
+  try { const u = await window.claude.use("user"); if (u && (await u.can("data.write")) === false) goReadOnly(); } catch (e) {}
   $("loading").style.display = "flex";
   let first = true; const begin = () => { if (first) { first = false; $("loading").style.display = "none"; refresh(); run(); } };
   const timer = setTimeout(() => { $("loading").textContent = "The saved data can't be reached yet. Still trying…"; }, 10000);
@@ -987,7 +1096,7 @@ async function startDb() {              // published tracker: data lives in the 
     if (snap.metadata.hasPendingWrites || dirty || saving) return;      // our own edits are newer
     if (snap.exists) {
       const inc = JSON.parse(JSON.stringify(snap.data()));
-      if (first || canon(normalize(inc)) !== canon(doc)) { adopt(inc); if (!first) { refresh(); if (cardId && !byId(cardId)) closeCard(); else if (cardId) drawCard(); } }
+      if (first || canon(normalize(inc)) !== canon(doc)) { adopt(inc); base = clone(doc); if (!first) { refresh(); if (cardId && !byId(cardId)) closeCard(); else if (cardId) drawCard(); } }
     }
     begin();
   }, (e) => { clearTimeout(timer); begin(); setSync("err", "Saved data unavailable (" + ((e && e.code) || "error") + ")"); });
