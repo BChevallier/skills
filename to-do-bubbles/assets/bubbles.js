@@ -49,10 +49,13 @@ const topLevel = () => data.todos.filter((t) => !t.parent || !byId(t.parent));
 
 function totals() {
   const per = {}; data.tags.forEach((g) => per[g.id] = { planned: 0, done: 0, open: 0 });
-  let untagged = 0, done = 0;
+  let untagged = 0, done = 0, worked = 0, left = 0;
   for (const t of leaves()) {
     const e = est(t), f = frac(t), tg = effTags(t);
     done += e * f;
+    // header numbers: real hours for finished to-dos, the done share of the estimate for open ones;
+    // "left" is every bubble still floating: the open share of to-dos plus each tag's "not planned yet" bubble
+    if (t.done) worked += t.actual_h != null ? +t.actual_h : e; else { worked += e * f; left += e * (1 - f); }
     if (!tg.length) untagged += e;
     tg.forEach((id) => { per[id].planned += e / tg.length; per[id].done += e * f / tg.length; if (!t.done) per[id].open++; });
   }
@@ -62,9 +65,9 @@ function totals() {
     p.closed = !!g.done && !p.open;                      // tag finished by holding its empty box title
     p.total = p.closed ? p.planned : Math.max(g.estimate_h || 0, p.planned);
     p.unplanned = p.closed ? 0 : Math.max(0, (g.estimate_h || 0) - p.planned);
-    total += p.total;
+    total += p.total; left += p.unplanned;
   });
-  return { per, total, done, remaining: Math.max(0, total - done) };
+  return { per, total, done, remaining: Math.max(0, total - done), worked, left };
 }
 
 // ---------- 2. server sync ----------
@@ -184,10 +187,10 @@ function refresh() {
   if (!titleEditing) $("title").textContent = doc.name || project;
   document.title = (doc.name || project) + " · Bubbles";
   renderTabs();
-  const t = totals(), pct = t.total ? Math.round(100 * t.done / t.total) : 0;
+  const t = totals(), pct = t.worked + t.left ? Math.round(100 * t.worked / (t.worked + t.left)) : 0;
   $("barFill").style.width = pct + "%";
   const half = (h) => String(Math.round(h * 2) / 2);          // header: half-hour precision is plenty
-  $("doneH").textContent = half(t.done) + " h done"; $("leftH").textContent = half(t.remaining) + " h left";
+  $("doneH").textContent = half(t.worked) + " h worked"; $("leftH").textContent = half(t.left) + " h left";
   rebuildBodies(t); renderBoxes(t); renderDone(); renderLegend(t); placeShade();
 }
 
@@ -273,7 +276,7 @@ function showSheets(ids, prim) {
   try { localStorage.setItem(viewKey(), JSON.stringify({ shown, primary })); } catch (e) {}
   closeCard(); bodies = []; refresh(); wake(1);
 }
-function sheetLeft(s) { const keep = data; data = s; const t = totals(); data = keep; return t.remaining; }
+function sheetLeft(s) { const keep = data; data = s; const t = totals(); data = keep; return t.left; }   // same rule as the header
 function renderTabs() {
   const nav = $("tabs"); if (!nav || renaming || tabDrag) return;
   const half = (h) => String(Math.round(h * 2) / 2), one = shown.length === 1;
