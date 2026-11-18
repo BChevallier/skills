@@ -191,3 +191,4 @@
   #tabs .tab.dragging { position: relative; z-index: 2; cursor: grabbing; background: rgba(255,255,255,.07); border-radius: 6px 6px 0 0; }
   #tabs .tab.dropBefore { box-shadow: inset 2px 0 0 var(--text); }
   #tabs .tab.dropAfter { box-shadow: inset -2px 0 0 var(--text); }
+  body.noselect, body.noselect * { -webkit-user-select: none !important; user-select: none !important; }   /* while a tab is dragged */

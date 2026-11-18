@@ -294,7 +294,7 @@ function renderTabs() {
         else if (shown.length > 1) { const rest = shown.filter((x) => x !== id); showSheets(rest, primary === id ? rest[0] : primary); }
       } else if (!(one && shown[0] === id)) showSheets([id], id);
     };
-    el.onmousedown = (e) => { if (e.shiftKey) e.preventDefault(); };                  // no text selection on shift-click
+    el.onmousedown = (e) => { if (!e.target.closest(".tinput")) e.preventDefault(); };   // a press on a tab never starts a text selection (drags, shift-clicks)
     el.onpointerdown = (e) => startTabDrag(e, el, s, nav);
     el.ondblclick = (e) => { if (!readOnly && shown.includes(id) && !e.target.closest(".tdel,.tdot")) startRename(el, s); };
   });
@@ -324,7 +324,7 @@ function startTabDrag(e, el, s, nav) {
     t.classList.toggle("dropAfter", moved && idx === others.length && i === others.length - 1); });
   const move = (ev) => {          // listened for on the window: a fast drag leaves the tab at once
     const dx = ev.clientX - x0;
-    if (!moved) { if (Math.abs(dx) < 6) return; moved = tabDrag = true; el.classList.add("dragging"); getSelection().removeAllRanges(); }
+    if (!moved) { if (Math.abs(dx) < 6) return; moved = tabDrag = true; el.classList.add("dragging"); document.body.classList.add("noselect"); getSelection().removeAllRanges(); }
     el.style.transform = `translateX(${dx}px)`;
     idx = mids.filter((m) => m < ev.clientX).length; mark();
   };
@@ -332,7 +332,7 @@ function startTabDrag(e, el, s, nav) {
     removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
     if (!moved) return;
     tabDrag = false; justDragged = true; setTimeout(() => { justDragged = false; }, 0);   // the click that follows a drag does nothing
-    el.classList.remove("dragging"); el.style.transform = ""; moved = false; mark();
+    el.classList.remove("dragging"); document.body.classList.remove("noselect"); el.style.transform = ""; moved = false; mark();
     if (ev.type === "pointercancel") return refresh();
     const L = live().filter((x) => x !== s), before = L[idx];
     if (live().indexOf(s) === idx) return refresh();                                  // dropped where it was
