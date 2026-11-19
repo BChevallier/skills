@@ -65,6 +65,10 @@ Picked at start-up, in this order:
 - **No deadlines, reminders or "overdue" state.** This is non-negotiable (see SKILL.md).
 - **Sheets are archived, never deleted**, and the page has no way to restore one.
 - **Nesting by drag:** dragging a list row (6 px threshold, listens on the window like tab drags) onto another top-level row of the same sheet makes it a sub-to-do; dropping a sub-to-do on a box outside the rows un-nests it. The lists don't re-render during a drag, and the click that ends a drag does nothing.
+  - Targets are found by geometry (with a few px of slack), never `elementFromPoint`, so the header, legend or gaps can't swallow a drop; rows under the header don't count.
+  - `mousedown` on a row is prevented: in Safari/WebKit (also Plash) a text selection turns into a native drag, which cancels the pointer drag.
+  - Same-sheet check uses `sheetOf()`: to-dos created since load have no `owner` entry in a single-sheet view.
+  - Holding the pointer near the top (under the header) or bottom edge scrolls the page.
 - **Tag pickers hide finished areas** (`pickable()`), except a tag the to-do already has.
 - **Sheet order is the order of `doc.sheets`.** Dragging a tab sideways moves its sheet, and a vertical line
   marks where it will land. The drag listens on the window, because a fast drag leaves the tab at once,

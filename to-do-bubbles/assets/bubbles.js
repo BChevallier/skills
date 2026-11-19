@@ -831,50 +831,76 @@ $("boxes").addEventListener("pointerdown", (e) => {
 
 // Drag a row onto another top-level row: it becomes that to-do's sub-to-do (one level only, same sheet).
 // Drag a sub-to-do onto any box outside a row: it becomes a top-level to-do again and keeps its tags.
+// Targets are found by geometry, not by the element under the pointer, so the header, the legend or a gap
+// between rows never swallows a drop; the page scrolls when the pointer nears the top or bottom edge.
+const ROW_SKIP = "[data-act=hold],[data-act=caret],button,a,input";
+$("boxes").addEventListener("mousedown", (e) => {          // no text selection or native text drag from a row (Safari cancels pointer drags then)
+  if (!readOnly && e.button === 0 && e.target.closest(".row") && !e.target.closest(ROW_SKIP)) e.preventDefault();
+});
+$("boxes").addEventListener("dragstart", (e) => e.preventDefault());
 $("boxes").addEventListener("pointerdown", (e) => {
   const row = e.target.closest(".row");
-  if (!row || readOnly || e.button !== 0 || e.target.closest("[data-act=hold],[data-act=caret],button,a")) return;
-  rowDrag = { id: row.dataset.id, row, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
+  if (rowDrag || !row || readOnly || e.button !== 0 || !e.isPrimary || e.target.closest(ROW_SKIP)) return;
+  rowDrag = { id: row.dataset.id, pid: e.pointerId, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
 });
+const rowEl = (id) => document.querySelector(`#boxes .row[data-id="${CSS.escape(id)}"]:not(.dragGhost)`);   // the live element, even after a re-render
 function dropTarget(x, y) {             // what the dragged row would land on: { row, todo } to nest, { box } to un-nest
-  const d = byId(rowDrag.id), el = document.elementFromPoint(x, y), row = el && el.closest(".row"), box = el && el.closest(".box");
+  const d = byId(rowDrag.id); if (!d || y < document.querySelector("header").getBoundingClientRect().bottom) return null;   // under the header: nothing visible to drop on
+  const hit = (el, pad) => { const r = el.getBoundingClientRect(); return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad; };
+  const rows = [...document.querySelectorAll("#boxes .row")].filter((r) => r.dataset.id !== d.id);
+  const row = rows.find((r) => hit(r, 0)) || rows.find((r) => hit(r, 6));      // a few px of slack for near misses
   if (row) {
     const t = byId(row.dataset.id);
-    const ok = t && t !== d && !t.parent && !isParent(d) && d.parent !== t.id && owner.get(t) === owner.get(d);
-    return ok ? { row, todo: t } : null;
+    const ok = t && !t.parent && !isParent(d) && d.parent !== t.id && sheetOf(t) === sheetOf(d);   // sheetOf: new to-dos have no owner entry yet
+    if (ok) return { row, todo: t };
   }
+  const box = [...document.querySelectorAll("#boxes .box")].find((b) => hit(b, 8));
   return box && d.parent ? { box } : null;
 }
 function markDrop(tg) {
   document.querySelectorAll(".dropInto,.dropOut").forEach((x) => x.classList.remove("dropInto", "dropOut"));
   if (tg && tg.row) tg.row.classList.add("dropInto"); else if (tg && tg.box) tg.box.classList.add("dropOut");
 }
+function dragScroll() {                 // near the top (under the header) or bottom edge: scroll, and keep the target current
+  if (!rowDrag || !rowDrag.moved) return;
+  const top = document.querySelector("header").getBoundingClientRect().bottom, y = rowDrag.cy, edge = 50;
+  const v = y < top + edge ? -Math.ceil((top + edge - y) / 4) : y > innerHeight - edge ? Math.ceil((y - innerHeight + edge) / 4) : 0;
+  if (v) { scrollBy(0, v); rowDrag.over = dropTarget(rowDrag.cx, rowDrag.cy); markDrop(rowDrag.over); }
+  rowDrag.raf = requestAnimationFrame(dragScroll);
+}
 addEventListener("pointermove", (e) => {
-  if (!rowDrag) return;
+  if (!rowDrag || e.pointerId !== rowDrag.pid) return;
+  rowDrag.cx = e.clientX; rowDrag.cy = e.clientY;
   if (!rowDrag.moved) {
     if (Math.hypot(e.clientX - rowDrag.x, e.clientY - rowDrag.y) < 6) return;
-    cancelListHold(); rowDrag.moved = true; document.body.classList.add("noselect"); getSelection().removeAllRanges();
-    const r = rowDrag.row.getBoundingClientRect(), g = rowDrag.row.cloneNode(true);
+    const row = rowEl(rowDrag.id); if (!row) { rowDrag = null; return; }
+    cancelListHold(); closeCard(); rowDrag.moved = true; document.body.classList.add("noselect"); getSelection().removeAllRanges();
+    const r = row.getBoundingClientRect(), g = row.cloneNode(true);
     g.classList.add("dragGhost"); g.style.width = r.width + "px"; document.body.appendChild(g);
-    rowDrag.ghost = g; rowDrag.dx = e.clientX - r.left; rowDrag.dy = e.clientY - r.top; rowDrag.row.classList.add("dragging");
+    rowDrag.ghost = g; rowDrag.dx = rowDrag.x - r.left; rowDrag.dy = rowDrag.y - r.top; row.classList.add("dragging");
+    rowDrag.raf = requestAnimationFrame(dragScroll);
   }
+  e.preventDefault();
   rowDrag.ghost.style.transform = `translate(${e.clientX - rowDrag.dx}px, ${e.clientY - rowDrag.dy}px)`;
   rowDrag.over = dropTarget(e.clientX, e.clientY); markDrop(rowDrag.over);
 });
-function endRowDrag(drop) {
-  if (!rowDrag) return;
-  const { moved, over, ghost, row } = rowDrag, d = byId(rowDrag.id); rowDrag = null;
+function endRowDrag(drop, e) {
+  if (!rowDrag || (e && e.pointerId !== rowDrag.pid)) return;
+  const { moved, ghost, raf } = rowDrag, d = byId(rowDrag.id);
+  const over = moved && e ? dropTarget(e.clientX, e.clientY) : rowDrag.over; rowDrag = null;
   if (!moved) return;
-  justRowDragged = true; setTimeout(() => { justRowDragged = false; }, 0);
-  ghost.remove(); row.classList.remove("dragging"); markDrop(null); document.body.classList.remove("noselect");
+  cancelAnimationFrame(raf); justRowDragged = true; setTimeout(() => { justRowDragged = false; }, 0);
+  ghost.remove(); document.querySelectorAll("#boxes .row.dragging").forEach((r) => r.classList.remove("dragging"));
+  markDrop(null); document.body.classList.remove("noselect");
   if (drop && over && d) {
-    if (over.todo) { d.parent = over.todo.id; openParents.add(over.row.closest(".box").dataset.box + over.todo.id); }
+    if (over.todo) { d.parent = over.todo.id; const b = over.row.closest(".box"); if (b) openParents.add(b.dataset.box + over.todo.id); }
     else { if (!(d.tags || []).length) d.tags = effTags(d); d.parent = null; }        // keep the tags it inherited
     changed();
   } else refresh();
 }
-addEventListener("pointerup", () => endRowDrag(true));
-addEventListener("pointercancel", () => endRowDrag(false));
+addEventListener("pointerup", (e) => endRowDrag(true, e));
+addEventListener("pointercancel", (e) => endRowDrag(false, e));
+addEventListener("blur", () => endRowDrag(false));
 addEventListener("keydown", (e) => { if (e.key === "Escape") endRowDrag(false); });
 $("boxes").addEventListener("click", (e) => {
   if (justRowDragged) { justRowDragged = false; return; }          // the click that ends a drag does nothing
