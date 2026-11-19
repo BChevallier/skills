@@ -71,6 +71,9 @@ The same JSON for both variants:
 ```
 
 - **Hours** are decimal multiples of 0.25 (15 min), everywhere.
+- **Tag estimates are optional; to-do estimates are not.** A tag without one has `estimate_h: null`: it gets
+  no "not planned yet" bubble, and its hours are just the sum of its to-dos. In the new-tag dialog, step the
+  hours below 1 to choose "no estimate". Every to-do needs an `estimate_h` of at least 0.25.
 - **Sheets:** `id`, `name`, optional `color` (colour family). The order of `sheets` is the tab order; users
   reorder sheets by dragging the tabs. Omit `color` and the page picks a free one.
   An archived sheet also has `archived: true` and `archived_at` (`YYYY-MM-DD`); keep it in the document.
@@ -140,7 +143,7 @@ The same JSON for both variants:
 2. Decide which case applies:
    - **The user gives a concrete list** (titles, durations, maybe tags): add it as given. Round hours to
      0.25 and turn vague areas into tags rather than to-dos. Ask only about what is missing (e.g. a
-     duration).
+     to-do's duration). A tag without a given total gets `estimate_h: null`.
    - **You infer the structure from context** (a project description, notes, a goal): propose it first
      and **wait for the user's approval before writing anything**. Show it compactly, per sheet:
 

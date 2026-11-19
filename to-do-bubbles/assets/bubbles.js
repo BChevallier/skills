@@ -999,10 +999,13 @@ function hideDlgs() { $("veil").style.display = "none"; $("finishDlg").style.dis
 $("veil").onclick = hideDlgs;
 addEventListener("keydown", (e) => { if (e.key === "Escape") { hideDlgs(); closeCard(); } });
 
-function stepper(id, val) { return `<span class="step"><button type="button" data-step="-0.25" data-for="${id}">−</button><span id="${id}" data-v="${val}">${fmt(val)}</span><button type="button" data-step="0.25" data-for="${id}">+</button></span>`; }
+function stepper(id, val, none, step = 0.25) {     // none: stepping below the smallest value gives "no estimate" (value 0); tags only
+  return `<span class="step"><button type="button" data-step="-${step}" data-for="${id}">−</button><span id="${id}" data-v="${val}"${none ? " data-none" : ""}>${val > 0 ? fmt(val) : "no estimate"}</span><button type="button" data-step="${step}" data-for="${id}">+</button></span>`; }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-step]"); if (!b) return;
-  const el = $(b.dataset.for), v = q15(+el.dataset.v + +b.dataset.step); el.dataset.v = v; el.textContent = fmt(v);
+  const el = $(b.dataset.for), cur = +el.dataset.v, st = +b.dataset.step, none = el.hasAttribute("data-none");
+  const v = none && cur + st < 0.25 ? 0 : q15(none && cur === 0 ? Math.abs(st) : cur + st);
+  el.dataset.v = v; el.textContent = v > 0 ? fmt(v) : "no estimate";
 });
 
 function burst(x, y, color) {
@@ -1064,7 +1067,7 @@ function openTagDlg() {            // header "+": a new tag (area of work)
   let col = solo ? (SOLO.find((c) => !home.tags.some((g) => soloColor(g) === c)) || SOLO[0]) : shade;
   d.innerHTML = `<h3>New tag</h3><label>Area of work</label><input type="text" id="tgName" placeholder="e.g. Assembly">`
     + `<label>Colour</label><div id="tgPal" style="display:flex;flex-wrap:wrap;gap:8px">${fam.map((c) => `<span data-c="${c}" style="width:22px;height:22px;border-radius:50%;cursor:pointer;background:${c}"></span>`).join("")}</div>`
-    + `<label>Rough total hours</label><span class="step"><button type="button" data-step="-1" data-for="tgEst">−</button><span id="tgEst" data-v="5">${fmt(5)}</span><button type="button" data-step="1" data-for="tgEst">+</button></span>`
+    + `<label>Rough total hours <span style="opacity:.7">(optional)</span></label>${stepper("tgEst", 5, true, 1)}`
     + `<div class="btns"><button id="tgNo">Cancel</button><button class="primary" id="tgYes">Save</button></div>`;
   const mark = () => d.querySelectorAll("#tgPal span").forEach((x) => x.style.outline = x.dataset.c === col ? "2px solid #fff" : "none");
   mark(); showDlg(d); $("tgName").focus();
@@ -1074,7 +1077,7 @@ function openTagDlg() {            // header "+": a new tag (area of work)
     const name = $("tgName").value.trim(); if (!name) { $("tgName").focus(); return; }
     let id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tag", n = 2; const base = id;
     while (doc.sheets.some((s) => s.tags.some((g) => g.id === id))) id = base + "-" + n++;
-    const g = { id, name, color: solo ? shade : col, ...(solo ? { solo: col } : {}), estimate_h: +$("tgEst").dataset.v }; owner.set(g, home);
+    const g = { id, name, color: solo ? shade : col, ...(solo ? { solo: col } : {}), estimate_h: +$("tgEst").dataset.v || null }; owner.set(g, home);   // null: no estimate for this area
     if (data.multi) data.tags.push(g); else home.tags.push(g); hideDlgs(); changed();
   };
   $("tgYes").onclick = submit; $("tgName").onkeydown = (e) => { if (e.key === "Enter") submit(); };

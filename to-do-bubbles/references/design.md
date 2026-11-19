@@ -69,6 +69,7 @@ Picked at start-up, in this order:
   and the click that ends a drag does nothing. View-only viewers can't drag.
 - **Hold to act:** popping a bubble, finishing a tag and archiving a sheet all need an 800 ms hold (`HOLD_MS`), so nothing happens by accident.
 - **Hours** are in 15-minute steps and always shown as decimals (`1.5 h`, never `1:30`).
+- **Tag estimates are optional** (`estimate_h: null`); to-do estimates are required. The new-tag dialog's stepper goes one step below 1 h to "no estimate" (`stepper(..., none)`).
 - **Random layout on every load:** bubble order is reshuffled each time so no to-do always sits in the same corner.
 - **"Poofed" to-dos** are hidden for the current visit only and come back on reload.
 - **Which sheets are shown** is stored per browser, so two people viewing the same tracker never change each other's view.
