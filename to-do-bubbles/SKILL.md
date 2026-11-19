@@ -80,6 +80,9 @@ The same JSON for both variants:
 - **Tags** are areas of work. `estimate_h` is a rough total for the area; hours not yet covered by
   to-dos show as a dashed "not planned yet" bubble. Omit `color` and the page gives the next free shade
   of the sheet's family. A finished area has `done: true`, `done_seq`, `done_at`.
+  A finished area can be **removed**: hold the bin on its row in "Completed to-dos". That sets
+  `removed: true` and `removed_at`; like an archived sheet it stays in the document, its finished to-dos
+  keep counting, and the page never shows the area again. Never delete it, never build a way back.
   - **Two colours per tag.** With one sheet open, tags show clearly different hues: optional `solo`
     (picked by the user), else the next free far-apart hue. With several sheets open, tags show `color`
     (the sheet's family shade) so projects stay apart. Clicking a tag's dot edits whichever applies to

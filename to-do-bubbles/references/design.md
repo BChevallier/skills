@@ -69,7 +69,10 @@ Picked at start-up, in this order:
   - `mousedown` on a row is prevented: in Safari/WebKit (also Plash) a text selection turns into a native drag, which cancels the pointer drag.
   - Same-sheet check uses `sheetOf()`: to-dos created since load have no `owner` entry in a single-sheet view.
   - Holding the pointer near the top (under the header) or bottom edge scrolls the page.
-- **Tag pickers hide finished areas** (`pickable()`), except a tag the to-do already has.
+- **Tag pickers hide finished and removed areas** (`pickable()`), except a tag the to-do already has.
+- **Removing a finished area** is a hold on the bin in its "Completed to-dos" row (`rmvHold`, same 0.8 s and red fill as
+  archiving a sheet). It only sets `removed`/`removed_at`; the done list filters it out. Only open to-dos'
+  titles underline on hover (`#boxes .row .t:hover`): rows in the done list are not links.
 - **Sheet order is the order of `doc.sheets`.** Dragging a tab sideways moves its sheet, and a vertical line
   marks where it will land. The drag listens on the window, because a fast drag leaves the tab at once,
   and the click that ends a drag does nothing. View-only viewers can't drag.

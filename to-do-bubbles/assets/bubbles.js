@@ -46,7 +46,7 @@ function effTags(t) {
 }
 const leaves = () => data.todos.filter((t) => !isParent(t));
 const topLevel = () => data.todos.filter((t) => !t.parent || !byId(t.parent));
-const pickable = (on) => { const per = totals().per; return data.tags.filter((g) => !per[g.id].closed || on.has(g.id)); };   // tag pickers: finished areas only if already picked
+const pickable = (on) => { const per = totals().per; return data.tags.filter((g) => (!per[g.id].closed && !g.removed) || on.has(g.id)); };   // tag pickers: finished or removed areas only if already picked
 
 function totals() {
   const per = {}; data.tags.forEach((g) => per[g.id] = { planned: 0, done: 0, open: 0 });
@@ -974,11 +974,12 @@ function renderDone() {
       + `<div class="cblock">${scatter(rated.map((t) => pt(t, "#c9ced9")), [], 230)}<div class="lbl">all</div></div></div>`;
   }
   $("doneStats").innerHTML = h; h = "";            // stats stay open; only the list below folds
-  const items = [...done.map((t) => ({ t, seq: t.done_seq || 0 })), ...data.tags.filter((g) => g.done).map((g) => ({ g, seq: g.done_seq || 0 }))];
+  const items = [...done.map((t) => ({ t, seq: t.done_seq || 0 })), ...data.tags.filter((g) => g.done && !g.removed).map((g) => ({ g, seq: g.done_seq || 0 }))];   // removed areas stay in the data, never shown
   items.forEach((it, i) => it.i = i); items.sort((a, b) => b.seq - a.seq || b.i - a.i);            // newest first
   h += items.length ? items.map((it) => {
     if (it.g) return `<div class="row" data-tag="${esc(it.g.id)}"><span class="dot" style="background:${esc(tc(it.g))}"></span><span class="t" style="cursor:default">${esc(it.g.name)}</span>`
-      + `<button class="ghost ico" data-act="reopen" style="margin-left:auto" title="Reopen this area">${UNDO}</button></div>`;
+      + `<span class="rmv" style="margin-left:auto" title="Hold to remove this area from the tracker"><i></i>${TRASH}</span>`
+      + `<button class="ghost ico" data-act="reopen" title="Reopen this area">${UNDO}</button></div>`;
     const t = it.t, p = t.parent && byId(t.parent);
     return `<div class="row" data-id="${esc(t.id)}"><span class="hold doneMark" style="--c:${esc(colorOf(effTags(t)[0]))}">${holdSvg}</span><span class="t" style="cursor:default">${p ? `<span style="color:var(--dim)">${esc(p.title)} › </span>` : ""}${esc(t.title)}</span>`
       + `<span class="meta">est. ${fmt(est(t))} → real</span><span class="step"><button data-act="less">−</button><span>${t.actual_h ? fmt(t.actual_h) : "?"}</span><button data-act="more">+</button></span>`
@@ -993,6 +994,16 @@ $("doneStats").addEventListener("mousemove", (e) => {      // histogram: date an
   tip.style.left = Math.min(innerWidth - 150, e.clientX + 12) + "px"; tip.style.top = (e.clientY - 34) + "px";
 });
 $("doneStats").addEventListener("mouseleave", () => { $("tip").style.display = "none"; });
+let rmvHold = null;                // hold a finished area's bin 0.8 s: it leaves the tracker (kept in the data as removed: true)
+function stopRmv() { if (rmvHold) { clearTimeout(rmvHold.timer); rmvHold.el.classList.remove("holding"); rmvHold = null; } }
+$("doneBody").addEventListener("pointerdown", (e) => {
+  const el = e.target.closest(".rmv"); if (!el || readOnly || e.button !== 0) return;
+  e.preventDefault(); stopRmv(); el.classList.add("holding");
+  const g = tagById(el.closest(".row").dataset.tag);
+  rmvHold = { el, timer: setTimeout(() => { stopRmv(); if (g) { g.removed = true; g.removed_at = today(); changed(); } }, HOLD_MS) };
+});
+["pointerup", "pointercancel"].forEach((ev) => $("doneBody").addEventListener(ev, stopRmv, true));
+$("doneBody").addEventListener("pointerout", (e) => { if (rmvHold && !rmvHold.el.contains(e.relatedTarget)) stopRmv(); });
 $("doneBody").addEventListener("click", (e) => {
   const a = e.target.closest("[data-act]"); if (!a) return;
   const row = a.closest(".row");
