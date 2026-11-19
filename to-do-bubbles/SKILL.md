@@ -94,6 +94,10 @@ The same JSON for both variants:
   - `tags`: zero or more tag ids **of the same sheet**; the first gives the colour in lists.
   - `parent`: id of a parent to-do in the same sheet, or null. One level of nesting. A parent's hours
     and progress are the sums of its children. A child with no tags inherits the parent's.
+    In the page, drag a to-do's row onto another top-level row to nest it (only to-dos without sub-to-dos,
+    within one sheet); drag a sub-to-do onto its box, outside the rows, to make it top-level again. It
+    then keeps the tags it had inherited. A parent's own `estimate_h` stays stored but doesn't count while
+    it has sub-to-dos.
   - `progress`: 0–95 in steps of 5 while open.
   - Finished: `done: true`, `progress: 100`, `actual_h`, `done_seq` (highest existing `done_seq` in the
     sheet + 1), `done_at` (`YYYY-MM-DD`).

@@ -46,6 +46,7 @@ function effTags(t) {
 }
 const leaves = () => data.todos.filter((t) => !isParent(t));
 const topLevel = () => data.todos.filter((t) => !t.parent || !byId(t.parent));
+const pickable = (on) => { const per = totals().per; return data.tags.filter((g) => !per[g.id].closed || on.has(g.id)); };   // tag pickers: finished areas only if already picked
 
 function totals() {
   const per = {}; data.tags.forEach((g) => per[g.id] = { planned: 0, done: 0, open: 0 });
@@ -229,6 +230,7 @@ function soloColor(g) {
 const tc = (g) => data && data.multi ? g.color : soloColor(g);    // the colour a tag shows in the current view
 
 const owner = new WeakMap();
+let rowDrag = null, justRowDragged = false;   // list rows: drag one onto another to nest it
 let shown = [], primary = null, viewPos = new Map(), renaming = null, tagRenaming = null, titleEditing = false, tabDrag = false, justDragged = false;
 // Sheets are never deleted, only archived: they stay in the document but are never shown again.
 // There is deliberately no way to restore one from the page.
@@ -781,7 +783,7 @@ function rowHtml(t, boxKey, child) {
   return h;
 }
 function renderBoxes(t) {
-  if (tagRenaming) return;           // keep the open name field; the lists catch up when it closes
+  if (tagRenaming || (rowDrag && rowDrag.moved)) return;           // keep the open name field; the lists catch up when it closes
   const groups = data.tags.filter((g) => !t.per[g.id].closed).map((g) => ({ key: g.id, name: g.name, color: tc(g), done: t.per[g.id].done, total: t.per[g.id].total }));
   const open = topLevel().filter((x) => !isDone(x));
   if (open.some((x) => !effTags(x).length)) groups.push({ key: "", name: "No tag", color: "#8e96aa", done: null });
@@ -826,7 +828,56 @@ $("boxes").addEventListener("pointerdown", (e) => {
   listHold = { el, timer: setTimeout(() => { cancelListHold(); askFinish(id, origin); }, HOLD_MS) };
 });
 ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => $("boxes").addEventListener(ev, cancelListHold, true));
+
+// Drag a row onto another top-level row: it becomes that to-do's sub-to-do (one level only, same sheet).
+// Drag a sub-to-do onto any box outside a row: it becomes a top-level to-do again and keeps its tags.
+$("boxes").addEventListener("pointerdown", (e) => {
+  const row = e.target.closest(".row");
+  if (!row || readOnly || e.button !== 0 || e.target.closest("[data-act=hold],[data-act=caret],button,a")) return;
+  rowDrag = { id: row.dataset.id, row, x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
+});
+function dropTarget(x, y) {             // what the dragged row would land on: { row, todo } to nest, { box } to un-nest
+  const d = byId(rowDrag.id), el = document.elementFromPoint(x, y), row = el && el.closest(".row"), box = el && el.closest(".box");
+  if (row) {
+    const t = byId(row.dataset.id);
+    const ok = t && t !== d && !t.parent && !isParent(d) && d.parent !== t.id && owner.get(t) === owner.get(d);
+    return ok ? { row, todo: t } : null;
+  }
+  return box && d.parent ? { box } : null;
+}
+function markDrop(tg) {
+  document.querySelectorAll(".dropInto,.dropOut").forEach((x) => x.classList.remove("dropInto", "dropOut"));
+  if (tg && tg.row) tg.row.classList.add("dropInto"); else if (tg && tg.box) tg.box.classList.add("dropOut");
+}
+addEventListener("pointermove", (e) => {
+  if (!rowDrag) return;
+  if (!rowDrag.moved) {
+    if (Math.hypot(e.clientX - rowDrag.x, e.clientY - rowDrag.y) < 6) return;
+    cancelListHold(); rowDrag.moved = true; document.body.classList.add("noselect"); getSelection().removeAllRanges();
+    const r = rowDrag.row.getBoundingClientRect(), g = rowDrag.row.cloneNode(true);
+    g.classList.add("dragGhost"); g.style.width = r.width + "px"; document.body.appendChild(g);
+    rowDrag.ghost = g; rowDrag.dx = e.clientX - r.left; rowDrag.dy = e.clientY - r.top; rowDrag.row.classList.add("dragging");
+  }
+  rowDrag.ghost.style.transform = `translate(${e.clientX - rowDrag.dx}px, ${e.clientY - rowDrag.dy}px)`;
+  rowDrag.over = dropTarget(e.clientX, e.clientY); markDrop(rowDrag.over);
+});
+function endRowDrag(drop) {
+  if (!rowDrag) return;
+  const { moved, over, ghost, row } = rowDrag, d = byId(rowDrag.id); rowDrag = null;
+  if (!moved) return;
+  justRowDragged = true; setTimeout(() => { justRowDragged = false; }, 0);
+  ghost.remove(); row.classList.remove("dragging"); markDrop(null); document.body.classList.remove("noselect");
+  if (drop && over && d) {
+    if (over.todo) { d.parent = over.todo.id; openParents.add(over.row.closest(".box").dataset.box + over.todo.id); }
+    else { if (!(d.tags || []).length) d.tags = effTags(d); d.parent = null; }        // keep the tags it inherited
+    changed();
+  } else refresh();
+}
+addEventListener("pointerup", () => endRowDrag(true));
+addEventListener("pointercancel", () => endRowDrag(false));
+addEventListener("keydown", (e) => { if (e.key === "Escape") endRowDrag(false); });
 $("boxes").addEventListener("click", (e) => {
+  if (justRowDragged) { justRowDragged = false; return; }          // the click that ends a drag does nothing
   const a = e.target.closest("[data-act]"); if (!a) return;
   const box = a.closest(".box").dataset.box, row = a.closest(".row"), id = row && row.dataset.id, act = a.dataset.act;
   if (act === "color") { openPalette(box, a); e.stopPropagation(); return; }
@@ -936,7 +987,7 @@ function drawCard() {                 // every field is edited by clicking on it
   const t = byId(cardId); if (!t) return closeCard();
   const par = isParent(t), c = $("card"), on = new Set(par ? (t.tags || []) : effTags(t)), ln = linksOf(t);
   c.innerHTML = `<span id="cardX" title="Close">×</span><h3><span id="cardTitle" title="Click to rename">${esc(t.title)}</span> <span id="cardEst" title="${par ? "Sum of its sub-to-dos" : "Click to change"}">${fmt(est(t))}</span></h3>`
-    + `<div id="cardTags">${data.tags.map((g) => `<span class="chip tagPick${on.has(g.id) ? " on" : ""}" data-tag="${esc(g.id)}" style="color:${esc(tc(g))}">${esc(g.name)}</span>`).join("")}</div>`
+    + `<div id="cardTags">${pickable(on).map((g) => `<span class="chip tagPick${on.has(g.id) ? " on" : ""}" data-tag="${esc(g.id)}" style="color:${esc(tc(g))}">${esc(g.name)}</span>`).join("")}</div>`
     + `<div id="cardLinks">${ln.map((u, i) => `<div class="lrow"><a class="lnk" href="${esc(u)}" target="_blank" rel="noopener noreferrer" title="${esc(u)}">${GLOBE} ${esc(u.replace(/^https?:\/\//i, "").slice(0, 30))}</a><span class="lx" data-i="${i}" title="Remove link">×</span></div>`).join("")}`
     + `<input type="text" id="cardAddLink" placeholder="http://" spellcheck="false"></div>`
     + (par ? `<div class="sub">${kids(t).filter((k) => !k.done).length} of ${kids(t).length} sub-to-dos open · done when all of them are</div>`
@@ -1037,7 +1088,7 @@ function openEdit(id, presetTag) {
   const t = id ? byId(id) : null, d = $("editDlg");
   const picked = new Set(t ? (t.tags || []) : presetTag ? [presetTag] : []), hasKids = t && isParent(t);
   d.innerHTML = `<h3>${t ? "Edit to-do" : "New to-do"}</h3><label>What exactly? (be specific)</label><input type="text" id="edTitle" value="${t ? esc(t.title) : ""}">`
-    + `<label>Tags</label><div id="edTags">${data.tags.map((g) => `<span class="chip tagPick${picked.has(g.id) ? " on" : ""}" data-tag="${esc(g.id)}" style="color:${esc(tc(g))}">${esc(g.name)}</span>`).join("")}</div>`
+    + `<label>Tags</label><div id="edTags">${pickable(picked).map((g) => `<span class="chip tagPick${picked.has(g.id) ? " on" : ""}" data-tag="${esc(g.id)}" style="color:${esc(tc(g))}">${esc(g.name)}</span>`).join("")}</div>`
     + (hasKids ? `<label>Duration</label><div>${fmt(est(t))} — sum of its sub-to-dos</div>` : `<label>Estimated duration</label>${stepper("edEst", q15(t ? t.estimate_h || 0.5 : 0.5))}`)
     + `<label>Links (optional, separate with spaces)</label><input type="text" id="edLinks" placeholder="https://…" value="${t ? esc(linksOf(t).join(" ")) : ""}">`
     + `<div class="btns">${t ? `<button class="ghost" id="edDel" style="margin-right:auto">Delete</button>` : ""}<button id="edNo">Cancel</button><button class="primary" id="edYes">Save</button></div>`;

@@ -64,6 +64,8 @@ Picked at start-up, in this order:
 
 - **No deadlines, reminders or "overdue" state.** This is non-negotiable (see SKILL.md).
 - **Sheets are archived, never deleted**, and the page has no way to restore one.
+- **Nesting by drag:** dragging a list row (6 px threshold, listens on the window like tab drags) onto another top-level row of the same sheet makes it a sub-to-do; dropping a sub-to-do on a box outside the rows un-nests it. The lists don't re-render during a drag, and the click that ends a drag does nothing.
+- **Tag pickers hide finished areas** (`pickable()`), except a tag the to-do already has.
 - **Sheet order is the order of `doc.sheets`.** Dragging a tab sideways moves its sheet, and a vertical line
   marks where it will land. The drag listens on the window, because a fast drag leaves the tab at once,
   and the click that ends a drag does nothing. View-only viewers can't drag.
